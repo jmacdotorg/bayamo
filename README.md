@@ -4,9 +4,7 @@ Bayamo is a _braided chat stream viewer_. Feed it many disparate chat sources (s
 
 **This is a very early proof-of-concept prototype,** shared in the spirit of sharing and not under any assumption that anyone besides the creator might make immediate practical use of it.
 
-<!--
-[You can read an apologia for Bayamo on its creator's blog.]()
--->
+[You can read an apologia for Bayamo on its creator's blog.](http://fogknife.com/2017-04-18-bayamo-a-braided-chat-stream-viewer.html)
 
 ## Sample output
 
