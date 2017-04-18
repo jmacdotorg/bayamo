@@ -2,6 +2,8 @@
 
 # Bayamo (prototype version), by Jason McIntosh <jmac@jmac.org>
 
+our $VERSION = '0.1';
+
 use warnings;
 use strict;
 
