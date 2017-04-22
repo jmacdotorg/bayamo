@@ -97,7 +97,7 @@ while ( my @events = $watcher->wait_for_events() ) {
 
             # This nick pattern allows nicknames like [#this] for the sake of
             # ifirc's uncategorized-channel pseudo-nicks.
-            my $nick_pattern = '(?:\[#)?\w+\]?';
+            my $nick_pattern = '(?:\[#)?\+?\w+\]?';
 
             # Textual-logged messages start with '<nick>' and emotes
             # start with "• nick". Ignore all lines that aren't this.
