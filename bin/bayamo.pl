@@ -41,10 +41,10 @@ foreach ( keys %$config_file_ref ) {
 }
 
 # Set some defaults.
-$config{ log_dir } ||= "$FindBin::Bin/../log";
-$config{ db_file } ||= "$FindBin::Bin/../db/bayamo.db";
-$config{ text_color } ||= '000000';
-$config{ seconds_to_pause } ||= 600;
+$config{ log_dir } //= "$FindBin::Bin/../log";
+$config{ db_file } //= "$FindBin::Bin/../db/bayamo.db";
+$config{ text_color } //= '000000';
+$config{ seconds_to_pause } //= 600;
 
 use Path::Class::Dir;
 use File::ChangeNotify;
