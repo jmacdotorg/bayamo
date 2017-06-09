@@ -6,3 +6,4 @@ requires 'File::ChangeNotify';
 requires 'Color::ANSI::Util';
 requires 'Text::Wrap';
 requires 'DB_File';
+requires 'JSON::XS';

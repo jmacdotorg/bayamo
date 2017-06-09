@@ -67,6 +67,10 @@ Each of these can be set as config-file directives, or as command-line options.
 
     Default: 000000
 
+* **json** If invoked, then Bayamo outputs JSON instead of ANSI-formatted text.
+"This is an experimental feature", he said, not wanting to document it further
+at this time.
+
 ## Project status
 
 I have no idea what Bayamo wants to be yet. It probably doesn't just want to be a short script that works with a very specific IRC client setup and then just prints to STDOUT.
