@@ -2,7 +2,7 @@
 
 # Bayamo (prototype version), by Jason McIntosh <jmac@jmac.org>
 
-our $VERSION = '0.1';
+our $VERSION = '0.2';
 
 use warnings;
 use strict;
@@ -11,7 +11,10 @@ use FindBin;
 use Getopt::Long qw( GetOptions );
 use YAML qw( LoadFile );
 
-##########
+use JSON::XS;
+
+$| = 1;
+
 # Set up the config hash, priming it with command-line options.
 my %config;
 GetOptions (
@@ -22,6 +25,7 @@ GetOptions (
     'text_color=s',
     'my_nickname=s',
     'seconds_to_pause=s',
+    'json',
 );
 
 # Merge the contents of the config file, if present, into the config hash.
@@ -63,10 +67,15 @@ my $watcher = File::ChangeNotify->instantiate_watcher(
     directories => [ "$log_dir" ],
 );
 
-$SIG{INT} = sub { warn "\nOkay, bye.\n"; exit; };
-
 my %color;
 my %last_post_by_me;
+
+# This nick pattern allows nicknames like [#this] for the sake of
+# ifirc's uncategorized-channel pseudo-nicks.
+my $nick_pattern = '(?:\[#)?\+?\w+\]?';
+
+# On exit, delete the db file.
+$SIG{INT} = sub { unlink $db_file; exit; };
 
 while ( my @events = $watcher->wait_for_events() ) {
     for my $event ( @events ) {
@@ -77,27 +86,32 @@ while ( my @events = $watcher->wait_for_events() ) {
 
         my $db_key = "$log_file";
 
-        $last_line{ $db_key } ||= 0;
-
         my $channel_name = $log_file->parent->basename;
         my $network_name = $log_file->parent->parent->parent->basename;
         ( $network_name ) = $network_name =~ /^(\w+)/;
 
-        my $color_key = "$channel_name $network_name";
-        my $channel_color = get_color( $color_key );
+        my $channel_key = "$channel_name $network_name";
 
         my $fh = $log_file->openr;
         while ( my $log_line = <$fh> ) {
-            next if $. <= $last_line{ $db_key };
+
+            if ( defined $last_line{ $db_key } ) {
+                next if $. <= $last_line{ $db_key };
+            }
+            else {
+                # If the file has no representation in the database, then read it
+                # all the way to the end before we do anything else.
+                # Otherwise it'll just dump the entire contents of the file
+                # the first time Bayamo sees it, and that's not useful.
+                until ( $fh->eof ) {
+                    $log_line = <$fh>;
+                }
+            }
 
             $last_line{ $db_key } = $.;
 
             my ($w3_time, $message) = $log_line =~
                 /^\[(.*?)\]\s+(.*)$/;
-
-            # This nick pattern allows nicknames like [#this] for the sake of
-            # ifirc's uncategorized-channel pseudo-nicks.
-            my $nick_pattern = '(?:\[#)?\+?\w+\]?';
 
             # Textual-logged messages start with '<nick>' and emotes
             # start with "• nick". Ignore all lines that aren't this.
@@ -115,51 +129,78 @@ while ( my @events = $watcher->wait_for_events() ) {
                 defined $config{ my_nickname }
                 && ( $nick eq $config{ my_nickname } )
             ) {
-                $last_post_by_me{ $color_key } = time;
+                $last_post_by_me{ $channel_key } = time;
             }
-            if ( defined( $last_post_by_me{ $color_key } )
+            if ( defined( $last_post_by_me{ $channel_key } )
                  && (
-                    $last_post_by_me{ $color_key } + $config{seconds_to_pause}
+                    $last_post_by_me{ $channel_key } + $config{seconds_to_pause}
                     >= time
                  )
             ) {
                 next;
             }
 
-            my $nick_color = get_color( $nick );
+            my %line_info = (
+                nick => $nick,
+                nick_section => $nick_section,
+                network_name => $network_name,
+                channel_name => $channel_name,
+                message => $message,
+                channel_key => $channel_key,
+            );
 
-            my $meta_ansi = ansi256fg( $channel_color );
-            my $nick_ansi = ansi256fg( $nick_color );
-            my $message_ansi = ansi256fg( $config{text_color} );
-
-            my $new_line =
-                "[$network_name $channel_name] $message\n";
-
-            my $text = wrap( '', "\t", $new_line );
-
-            my $nick_section_pattern = quotemeta $nick_section;
-            $text =~
-                s/$nick_section_pattern/$nick_ansi$nick_section$message_ansi/;
-            $text = "$meta_ansi$text";
-
-            print $text;
-
+            if ( $config{ json } ) {
+                print_json( \%line_info );
+            }
+            else {
+                print_ansi( \%line_info );
+            }
         }
     }
 }
 
-sub get_color {
-    my ( $color_key ) = @_;
+sub print_ansi {
+    my ( $line_ref ) = @_;
 
-    unless ( exists $color{ $color_key } ) {
+    my $nick_color = get_color( $line_ref->{ nick } );
+    my $channel_color = get_color( $line_ref->{channel_key} );
+
+    my $meta_ansi = ansi256fg( $channel_color );
+    my $nick_ansi = ansi256fg( $nick_color );
+    my $message_ansi = ansi256fg( $config{text_color} );
+
+    my $new_line =
+        "[$line_ref->{network_name} $line_ref->{channel_name}] $line_ref->{message}\n";
+
+    my $text = wrap( '', "\t", $new_line );
+
+    my $nick_section_pattern = quotemeta $line_ref->{nick_section};
+    $text =~
+        s/$nick_section_pattern/$nick_ansi$line_ref->{nick_section}$message_ansi/;
+    $text = "$meta_ansi$text";
+
+    print $text;
+}
+
+sub print_json {
+    my ( $line_ref ) = @_;
+
+    print encode_json( $line_ref );
+    print "\n";
+}
+
+sub get_color {
+    my ( $channel_key ) = @_;
+
+    unless ( exists $color{ $channel_key } ) {
         my $new_color = sprintf(
             '%02X%02X%02X',
             int(rand(96)) + 32,
             int(rand(96)) + 32,
             int(rand(96)) + 32,
         );
-        $color{ $color_key } = $new_color;
+        $color{ $channel_key } = $new_color;
     }
 
-    return $color{ $color_key };
+    return $color{ $channel_key };
 }
